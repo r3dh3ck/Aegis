@@ -19,6 +19,7 @@ import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.NumberPicker;
 import android.widget.ProgressBar;
+import android.widget.RadioButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -27,6 +28,7 @@ import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 import androidx.appcompat.app.AlertDialog;
 
+import com.beemdevelopment.aegis.BackupVersioningStrategy;
 import com.beemdevelopment.aegis.Preferences;
 import com.beemdevelopment.aegis.R;
 import com.beemdevelopment.aegis.helpers.EditTextHelper;
@@ -577,6 +579,85 @@ public class Dialogs {
         showSecureDialog(dialog);
     }
 
+    public static void showBackupsVersioningStrategy(Context context, BackupVersioningStrategy selectedStrategy, BackupVersioningStrategyListener listener) {
+        View view = LayoutInflater.from(context).inflate(R.layout.dialog_backups_versioning_strategy, null);
+        RadioButton keepXVersions = view.findViewById(R.id.keep_x_versions);
+        RadioButton none = view.findViewById(R.id.none);
+        TextView warningText = view.findViewById(R.id.warning_text);
+        CheckBox riskAccept = view.findViewById(R.id.risk_accept);
+        final AtomicReference<Button> positiveButtonRef = new AtomicReference<>();
+        keepXVersions.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            Button positiveButton = positiveButtonRef.get();
+            if (positiveButton != null) {
+                positiveButton.setEnabled(isChecked);
+            }
+        });
+        keepXVersions.setChecked(selectedStrategy == BackupVersioningStrategy.MULTIPLE_FILES);
+        none.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            int visibility = isChecked ? View.VISIBLE : View.GONE;
+            warningText.setVisibility(visibility);
+            riskAccept.setVisibility(visibility);
+        });
+        none.setChecked(selectedStrategy == BackupVersioningStrategy.SINGLE_FILE);
+        riskAccept.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            Button positiveButton = positiveButtonRef.get();
+            if (positiveButton != null) {
+                positiveButton.setEnabled(isChecked);
+            }
+        });
+        AlertDialog alertDialog = new MaterialAlertDialogBuilder(context)
+                .setTitle(R.string.pref_backups_versioning_strategy_dialog_title)
+                .setView(view)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    if (keepXVersions.isChecked()) {
+                        listener.onStrategySelected(BackupVersioningStrategy.MULTIPLE_FILES);
+                    } else if (none.isChecked()) {
+                        listener.onStrategySelected(BackupVersioningStrategy.SINGLE_FILE);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        Button positiveButton = alertDialog.getButton(AlertDialog.BUTTON_POSITIVE);
+        DialogInterface.BUTTON_POSITIVE;
+        positiveButtonRef.set(positiveButton);
+        showSecureDialog(alertDialog);
+    }
+
+    public static void showBackupVersioningStrategyDialog(Context context, BackupVersioningStrategy selectedItem, BackupVersioningStrategyListener listener) {
+        int selectedIndex = selectedItem != null ? selectedItem.ordinal() : 0;
+        AlertDialog alertDialog = new MaterialAlertDialogBuilder(context)
+                .setTitle(R.string.pref_backups_versioning_strategy_dialog_title)
+                .setSingleChoiceItems(R.array.backups_versioning_strategy_titles, selectedIndex, (dialog, which) -> {
+                    if (which == 1) {
+                        showCheckboxDialog(
+                                context,
+                                R.string.pref_single_backup_warning_dialog_title,
+                                R.string.pref_single_backup_warning_dialog_summary,
+                                R.string.understand_risk_accept,
+                                checkbox -> {
+                                    if (!checkbox) {
+                                        ((AlertDialog) dialog).getListView().setItemChecked(0, true);
+                                    }
+                                }
+                        );
+                    }
+                })
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                    int position = ((AlertDialog) dialog).getListView().getCheckedItemPosition();
+                    switch (position) {
+                        case 0:
+                            listener.onStrategySelected(BackupVersioningStrategy.MULTIPLE_FILES);
+                            break;
+                        case 1:
+                            listener.onStrategySelected(BackupVersioningStrategy.SINGLE_FILE);
+                            break;
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        showSecureDialog(alertDialog);
+    }
+
     private static void setImporterHelpText(TextView view, DatabaseImporter.Definition definition, boolean isDirect) {
         if (isDirect) {
             view.setText(view.getResources().getString(R.string.importer_help_direct, definition.getName()));
@@ -604,5 +685,9 @@ public class Dialogs {
 
     public interface ImporterListener {
         void onImporterSelectionResult(DatabaseImporter.Definition definition);
+    }
+
+    public interface BackupVersioningStrategyListener {
+        void onStrategySelected(BackupVersioningStrategy result);
     }
 }

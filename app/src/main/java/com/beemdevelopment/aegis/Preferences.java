@@ -562,6 +562,33 @@ public class Preferences {
         }
     }
 
+    @Nullable
+    public BackupVersioningStrategy getBackupVersioningStrategy() {
+        Uri uri = getBackupsLocation();
+        if (uri == null) {
+            return null;
+        }
+        String path = uri.getPath();
+        if (path == null) {
+            return null;
+        }
+        String[] pathArray = path.split("/");
+        if (pathArray.length < 2) {
+            return null;
+        }
+        String value = pathArray[1];
+        if (value.equals("tree")) {
+            return BackupVersioningStrategy.MULTIPLE_FILES;
+        } else if (value.equals("document")) {
+            return BackupVersioningStrategy.SINGLE_FILE;
+        }
+        return null;
+    }
+
+    public boolean isSingleBackupEnabled() {
+        return getBackupVersioningStrategy() == BackupVersioningStrategy.SINGLE_FILE;
+    }
+
     public static class BackupResult {
         private final Date _time;
         private boolean _isBuiltIn;

@@ -17,9 +17,11 @@ import androidx.annotation.Nullable;
 import androidx.preference.Preference;
 import androidx.preference.SwitchPreferenceCompat;
 
+import com.beemdevelopment.aegis.BackupVersioningStrategy;
 import com.beemdevelopment.aegis.Preferences;
 import com.beemdevelopment.aegis.R;
 import com.beemdevelopment.aegis.ui.dialogs.Dialogs;
+import com.beemdevelopment.aegis.vault.VaultBackupManager;
 import com.beemdevelopment.aegis.vault.VaultRepositoryException;
 import com.google.android.material.color.MaterialColors;
 
@@ -27,6 +29,7 @@ public class BackupsPreferencesFragment extends PreferencesFragment {
     private SwitchPreferenceCompat _androidBackupsPreference;
     private SwitchPreferenceCompat _backupsPreference;
     private SwitchPreferenceCompat _backupReminderPreference;
+    private Preference _versioningStrategyPreference;
     private Preference _backupsLocationPreference;
     private Preference _backupsTriggerPreference;
     private Preference _backupsVersionsPreference;
@@ -100,6 +103,30 @@ public class BackupsPreferencesFragment extends PreferencesFragment {
             return false;
         });
 
+        _versioningStrategyPreference = requirePreference("pref_versioning_strategy");
+        BackupVersioningStrategy currentStrategy = _prefs.getBackupVersioningStrategy();
+        if (currentStrategy == BackupVersioningStrategy.MULTIPLE_FILES) {
+            _versioningStrategyPreference.setSummary(R.string.pref_backups_versioning_strategy_keep_x_versions);
+        } else if (currentStrategy == BackupVersioningStrategy.SINGLE_FILE) {
+            _versioningStrategyPreference.setSummary(R.string.pref_backups_versioning_strategy_single_backup);
+        }
+        _versioningStrategyPreference.setOnPreferenceClickListener(preference -> {
+            Dialogs.showBackupsVersioningStrategy(requireContext(), currentStrategy, result -> {
+                switch (result) {
+                    case MULTIPLE_FILES:
+                        selectBackupsLocation();
+                        _versioningStrategyPreference.setSummary(R.string.pref_backups_versioning_strategy_keep_x_versions);
+                        break;
+                    case SINGLE_FILE:
+                        createBackupFile();
+                        _versioningStrategyPreference.setSummary(R.string.pref_backups_versioning_strategy_single_backup);
+                        break;
+                }
+            });
+            return true;
+        });
+
+
         _androidBackupsPreference = requirePreference("pref_android_backups");
         _androidBackupsPreference.setOnPreferenceChangeListener((preference, newValue) -> {
             _prefs.setIsAndroidBackupsEnabled((boolean) newValue);
@@ -168,15 +195,17 @@ public class BackupsPreferencesFragment extends PreferencesFragment {
         boolean androidBackupEnabled = _prefs.isAndroidBackupsEnabled() && encrypted;
         boolean backupEnabled = _prefs.isBackupsEnabled() && encrypted;
         boolean backupReminderEnabled = _prefs.isBackupReminderEnabled();
+        boolean isSingleBackupEnabled = _prefs.isSingleBackupEnabled();
         _backupsPasswordWarningPreference.setVisible(_vaultManager.getVault().isBackupPasswordSet());
         _androidBackupsPreference.setChecked(androidBackupEnabled);
         _androidBackupsPreference.setEnabled(encrypted);
         _backupsPreference.setChecked(backupEnabled);
         _backupsPreference.setEnabled(encrypted);
         _backupReminderPreference.setChecked(backupReminderEnabled);
+        _versioningStrategyPreference.setVisible(backupEnabled);
         _backupsLocationPreference.setVisible(backupEnabled);
         _backupsTriggerPreference.setVisible(backupEnabled);
-        _backupsVersionsPreference.setVisible(backupEnabled);
+        _backupsVersionsPreference.setVisible(!isSingleBackupEnabled);
         if (backupEnabled) {
             updateBackupStatus(_builtinBackupStatusPreference, _prefs.getBuiltInBackupResult());
         }
@@ -219,6 +248,15 @@ public class BackupsPreferencesFragment extends PreferencesFragment {
         spannable.setSpan(new ForegroundColorSpan(color), 0, message.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         spannable.setSpan(new StyleSpan(Typeface.BOLD), 0, message.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
         return spannable;
+    }
+
+    private void createBackupFile() {
+        String fileName = VaultBackupManager.FILENAME_PREFIX +".json";
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("application/json")
+                .putExtra(Intent.EXTRA_TITLE, fileName);
+        _vaultManager.fireIntentLauncher(this, intent, backupsResultLauncher);
     }
 
     private void selectBackupsLocation() {

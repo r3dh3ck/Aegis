@@ -158,4 +158,9 @@
         <item>@string/pref_copy_behavior_single_tap</item>
         <item>@string/pref_copy_behavior_double_tap</item>
     </string-array>
+
+    <string-array name="backups_versioning_strategy_titles">
+        <item>@string/pref_backups_versioning_strategy_keep_x_versions</item>
+        <item>@string/pref_backups_versioning_strategy_single_backup</item>
+    </string-array>
 </resources>
